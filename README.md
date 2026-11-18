@@ -2,7 +2,7 @@
 
 **Visor 3D interactivo de vistas explosionadas.** Girá un objeto, desarmalo pieza por pieza y tocá cualquier componente para ver de qué está hecho: material, propiedades físicas y especificaciones técnicas.
 
-**▶ Probalo online: https://despiece.vercel.app**
+**▶ Probalo online: https://despiece-3d.vercel.app**
 
 ![Despiece: aire acondicionado desarmado con la ficha del compresor](docs/exploded.png)
 
@@ -16,7 +16,7 @@ El ejemplo incluido es la **unidad exterior de un aire acondicionado split inver
 - **Ver cada material** con sus propiedades mecánicas, térmicas y eléctricas, la norma que lo define y barras para compararlo con el resto.
 - **Cambiar la vista**: Sólido, Rayos X o Blueprint (plano de alambre).
 - **Aislar o enfocar** una pieza, y **buscar** por nombre o material (por ejemplo, «cobre»).
-- **Compartir una pieza**: cada ficha tiene su propio enlace, como `despiece.vercel.app/#compresor`.
+- **Compartir una pieza**: cada ficha tiene su propio enlace, como `despiece-3d.vercel.app/#compresor`.
 - **Simular el funcionamiento**: la hélice gira.
 - Funciona en **celular**: la lista se abre con ☰ y la ficha sube desde abajo.
 
