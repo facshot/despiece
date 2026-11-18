@@ -207,11 +207,17 @@ export function mountUI(app: HTMLElement, viewer: Viewer) {
     detail.scrollTop = 0;
   };
 
+  /** Aislar acerca la cámara a la pieza; volver a mostrar todo reencuadra el conjunto. */
+  const toggleIsolate = () => {
+    viewer.setIsolate(!viewer.isolated);
+    renderDetail(viewer.selected);
+    if (viewer.isolated) viewer.focus(); else viewer.fit();
+  };
   detail.addEventListener('click', (e) => {
     const act = ((e.target as HTMLElement).closest('[data-act]') as HTMLElement | null)?.dataset.act;
     if (act === 'close') viewer.select(null);
     if (act === 'focus') viewer.focus();
-    if (act === 'isolate') { viewer.setIsolate(!viewer.isolated); renderDetail(viewer.selected); if (viewer.isolated) viewer.focus(); }
+    if (act === 'isolate') toggleIsolate();
   });
 
   viewer.on('select', (p) => {
@@ -293,7 +299,7 @@ export function mountUI(app: HTMLElement, viewer: Viewer) {
     else if (e.key === 'ArrowLeft') actions['step-back']();
     else if (k === 'escape') viewer.select(null);
     else if (k === 'f') viewer.focus(viewer.selected);
-    else if (k === 'i' && viewer.selected) { viewer.setIsolate(!viewer.isolated); renderDetail(viewer.selected); }
+    else if (k === 'i' && viewer.selected) toggleIsolate();
     else if (k === 'l') actions.labels();
     else if (k === 'r') actions.spin();
     else if (k === '0') actions.reset();

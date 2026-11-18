@@ -305,17 +305,21 @@ export class Viewer {
     if (!p) return this.fit();
     this.tweenTo(new THREE.Box3().setFromObject(p.object).getBoundingSphere(new THREE.Sphere()), 1.3);
   }
-  private tweenTo(sphere: THREE.Sphere, margin: number) {
+  private tweenTo(sphere: THREE.Sphere, margin: number, dir = this.camera.position.clone().sub(this.controls.target).normalize()) {
     const vHalf = THREE.MathUtils.degToRad(this.camera.fov / 2);
     const half = Math.min(vHalf, Math.atan(Math.tan(vHalf) * this.camera.aspect));
     const dist = Math.max(0.35, (sphere.radius / Math.sin(half)) * margin);
-    const dir = this.camera.position.clone().sub(this.controls.target).normalize();
     this.camTween = {
       p0: this.camera.position.clone(), p1: sphere.center.clone().addScaledVector(dir, dist),
       t0: this.controls.target.clone(), t1: sphere.center.clone(), t: 0,
     };
   }
+  /** Vuelve al ángulo inicial; si está desarmado, encuadra todo el conjunto separado. */
   resetCamera() {
+    if (this.explodeTarget > 0.05) {
+      const dir = new THREE.Vector3(...this.model.camera.position).sub(new THREE.Vector3(...this.model.camera.target)).normalize();
+      return this.tweenTo(this.boundsAt(this.explodeTarget).getBoundingSphere(new THREE.Sphere()), 0.95, dir);
+    }
     this.camTween = {
       p0: this.camera.position.clone(), p1: new THREE.Vector3(...this.model.camera.position),
       t0: this.controls.target.clone(), t1: new THREE.Vector3(...this.model.camera.target), t: 0,
