@@ -236,3 +236,8 @@ label.check input { min-height: 0; width: 18px; height: 18px; margin-top: 3px; f
   .reg .reg-fecha { grid-column: 1 / -1; }
   .combo-prob { margin-left: 0; }
 }
+
+.ok { color: var(--pos); background: var(--acento-suave); padding: 10px 12px; border-radius: 8px; }
+.reg-anulada { border-left-color: var(--suave); }
+.reg-anulada .estado { color: var(--suave); }
+#error-panel { margin-top: 16px; }

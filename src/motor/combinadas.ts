@@ -2,7 +2,7 @@
 // total quede cerca del objetivo (por ejemplo x20) con la mejor relación entre
 // probabilidad estimada y cuota.
 
-import { seleccionesDe, type Partido, type Seleccion } from './modelo.ts';
+import { seleccionesDe, type Partido, type Seleccion } from './modelo';
 
 export interface Combinada {
   id: string;

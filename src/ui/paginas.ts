@@ -1,16 +1,19 @@
 import { AVISOS, AYUDA, DIAS_ARREPENTIMIENTO, MARCA, PLANES, type Plan } from '../config';
-import { contratar, leer } from '../cuenta';
-import type { Datos } from '../datos';
+import { api, ErrorApi, sesion, type Estado } from '../api';
 import { resumir } from '../motor/historial';
 import { PESO_MODELO } from '../motor/modelo';
 import { esc, pesos, porcentaje, prob } from './formato';
 
-export type Vista = (raiz: HTMLElement, datos: Datos) => void;
+export type Vista = (raiz: HTMLElement) => void | Promise<void>;
 
 const N = esc(MARCA.nombre);
 
-export function avisoDemo(datos: Datos): string {
-  if (!datos.partidos.demo && !datos.historial.demo) return '';
+let estadoCache: Promise<Estado | null> | null = null;
+export const estadoServicio = () => (estadoCache ??= api.estado().catch(() => null));
+
+export async function avisoDemo(): Promise<string> {
+  const e = await estadoServicio();
+  if (e && !e.demo) return '';
   return `<div class="banda-demo" role="note"><strong>Datos de demostración.</strong> Las cuotas, estadísticas y resultados de esta versión son simulados. No corresponden a partidos reales.</div>`;
 }
 
@@ -27,11 +30,12 @@ export function tarjetaPlan(p: Plan, accion: string): string {
   </div>`;
 }
 
-export const inicio: Vista = (raiz, datos) => {
-  const r = resumir(datos.historial.registros);
-  const cuenta = leer();
+export const inicio: Vista = async (raiz) => {
+  const [h, demo] = await Promise.all([api.historial().catch(() => ({ registros: [], pendientes: 0 })), avisoDemo()]);
+  const r = resumir(h.registros);
+  const cuenta = sesion.usuario;
   raiz.innerHTML = `
-  ${avisoDemo(datos)}
+  ${demo}
   <section class="hero">
     <p class="eyebrow">Software de análisis estadístico de fútbol</p>
     <h1>Combinadas analizadas con datos, con la probabilidad a la vista.</h1>
@@ -44,7 +48,7 @@ export const inicio: Vista = (raiz, datos) => {
   </section>
 
   <section class="cifras" aria-label="Rendimiento del historial">
-    <div><strong>${r.total}</strong><span>combinadas publicadas</span></div>
+    <div><strong>${r.total}</strong><span>combinadas resueltas${h.pendientes ? ` (+${h.pendientes} en juego)` : ''}</span></div>
     <div><strong>${r.ganadas}</strong><span>acertadas (${porcentaje(r.aciertos)})</span></div>
     <div><strong class="${r.roi < 0 ? 'neg' : 'pos'}">${porcentaje(r.roi, true)}</strong><span>ROI real sobre todo el historial</span></div>
     <div><a href="#/historial">Ver cada una, con las perdidas →</a></div>
@@ -88,8 +92,9 @@ export const inicio: Vista = (raiz, datos) => {
   </section>`;
 };
 
-export const planes: Vista = (raiz) => {
-  const c = leer();
+export const planes: Vista = async (raiz) => {
+  const c = sesion.usuario;
+  const e = await estadoServicio();
   raiz.innerHTML = `
   <section>
     <h1>Planes</h1>
@@ -98,19 +103,34 @@ export const planes: Vista = (raiz) => {
       let accion: string;
       if (!c) accion = `<a class="btn" href="#/registro">Registrarme</a>`;
       else if (p.id === 'prueba') accion = `<span class="meta">${c.plan === 'prueba' ? 'Tu plan actual' : 'Incluida al registrarte'}</span>`;
-      else if (c.plan === p.id && c.estado === 'activa') accion = `<span class="chip">Tu plan actual</span>`;
+      else if (c.plan === p.id && c.estado === 'activa' && c.suscripcionActiva) accion = `<span class="chip">Tu plan actual</span>`;
       else accion = `<button class="btn btn-primario" data-contratar="${p.id}">Contratar ${esc(p.nombre)}</button>`;
       return tarjetaPlan(p, accion);
     }).join('')}</div>
+    <p class="error" id="error-pago" role="alert" hidden></p>
     <div class="caja nota">
-      <p><strong>Versión de demostración:</strong> el pago está simulado y no se cobra nada. Para vender, este botón tiene que abrir el cobro de Mercado Pago o Stripe.</p>
+      ${e?.pagosSimulados
+        ? '<p><strong>Modo de prueba:</strong> Mercado Pago no está configurado, así que el plan se activa sin cobrar. En producción este botón lleva al pago.</p>'
+        : '<p>El pago se hace en Mercado Pago, con tarjeta o dinero en cuenta. La suscripción se renueva sola y la podés dar de baja en un clic desde tu panel.</p>'}
     </div>
   </section>`;
   raiz.querySelectorAll<HTMLButtonElement>('[data-contratar]').forEach((b) =>
-    b.addEventListener('click', () => {
-      if (!c) return;
-      contratar(c, b.dataset.contratar as Plan['id']);
-      location.hash = '#/panel';
+    b.addEventListener('click', async () => {
+      const error = raiz.querySelector<HTMLElement>('#error-pago')!;
+      b.disabled = true;
+      try {
+        const r = await api.suscribir(b.dataset.contratar as Plan['id']);
+        if (r.url) {
+          location.href = r.url;
+          return;
+        }
+        if (r.usuario) sesion.poner(r.usuario);
+        location.hash = '#/panel';
+      } catch (err) {
+        error.textContent = err instanceof ErrorApi ? err.message : 'No se pudo iniciar el pago.';
+        error.hidden = false;
+        b.disabled = false;
+      }
     }));
 };
 
@@ -183,10 +203,32 @@ export const terminos: Vista = (raiz) => {
       <li><strong>Suscripción y baja.</strong> Tiene precio fijo y renovación automática. El usuario puede darse de baja en cualquier momento desde el panel. Corresponde el derecho de arrepentimiento de ${DIAS_ARREPENTIMIENTO} días (Ley 24.240).</li>
       <li><strong>Uso personal.</strong> Está prohibido revender o redistribuir los análisis.</li>
       <li><strong>Juego responsable.</strong> El usuario puede pausar o cerrar su cuenta en cualquier momento. ${N} puede suspender cuentas ante señales de juego problemático.</li>
-      <li><strong>Datos personales.</strong> Se tratan según la Ley 25.326. <em>[Completar con una política de privacidad.]</em></li>
+      <li><strong>Datos personales.</strong> Se tratan según la Ley 25.326 y la <a href="#/privacidad">política de privacidad</a>.</li>
       <li><strong>Jurisdicción.</strong> ${esc(MARCA.jurisdiccion)}. <em>[A confirmar con el abogado.]</em></li>
     </ol>
     <p class="meta">Contacto: ${esc(MARCA.contacto)}</p>
+  </article>`;
+};
+
+export const privacidad: Vista = (raiz) => {
+  raiz.innerHTML = `
+  <article class="texto">
+    <p class="chip">Borrador para revisión del abogado</p>
+    <h1>Política de privacidad</h1>
+    <p>Tratamos tus datos según la Ley 25.326 de Protección de Datos Personales.</p>
+    <h2>Qué datos guardamos</h2>
+    <ul>
+      <li>Nombre, correo y fecha de nacimiento, para crear la cuenta y verificar que sos mayor de edad.</li>
+      <li>Tu contraseña, cifrada: nadie puede leerla, ni siquiera nosotros.</li>
+      <li>Tu plan, tus preferencias (ligas, alertas, límites, pausas) y el tiempo de uso diario.</li>
+      <li>Las combinadas que te mostramos cada día, para respetar el cupo de tu plan.</li>
+      <li>Los avisos de pago de Mercado Pago. No guardamos datos de tarjetas: los maneja Mercado Pago.</li>
+    </ul>
+    <h2>Para qué</h2>
+    <p>Solo para prestar el servicio, cobrar la suscripción y aplicar las herramientas de juego responsable. No vendemos ni compartimos tus datos con casas de apuestas ni con terceros con fines comerciales.</p>
+    <h2>Tus derechos</h2>
+    <p>Podés acceder, rectificar o suprimir tus datos. Cerrar tu cuenta desde el panel borra tus datos personales; conservamos solo un código cifrado de tu correo para que la prueba gratis no se repita, y los registros de pago que exija la ley.</p>
+    <p class="meta">Contacto: ${esc(MARCA.contacto)}. [Completar responsable de la base de datos e inscripción ante la Agencia de Acceso a la Información Pública.]</p>
   </article>`;
 };
 
@@ -200,6 +242,7 @@ export const pie = () => `
       <a href="#/como-funciona">Cómo funciona</a>
       <a href="#/historial">Historial</a>
       <a href="#/planes">Planes</a>
+      <a href="#/privacidad">Privacidad</a>
       <a href="#/terminos">Términos</a>
       <a href="#/juego-responsable">Juego responsable</a>
     </nav>
