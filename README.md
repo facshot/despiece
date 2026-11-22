@@ -1,123 +1,60 @@
-# Despiece
+# Cuotalab
 
-**Visor 3D interactivo de vistas explosionadas.** Girá un objeto, desarmalo pieza por pieza y tocá cualquier componente para ver de qué está hecho: material, propiedades físicas y especificaciones técnicas.
+**Software de análisis estadístico de fútbol por suscripción fija.** Analiza cuotas y estadísticas de partidos y sugiere las combinadas con mejor relación entre probabilidad estimada y cuota (por ejemplo, objetivo x20), mostrando siempre la probabilidad al lado.
 
-**▶ Probalo online: https://despiece-3d.vercel.app**
+- **Qué no hace:** no recibe apuestas, no toca la plata del usuario, no paga premios y no está asociado a ninguna casa.
+- **Quién decide:** el usuario. Apuesta por su cuenta, donde quiera, siempre en una casa con licencia.
 
-![Despiece: aire acondicionado desarmado con la ficha del compresor](docs/exploded.png)
+> ⚠️ Esta versión usa **datos simulados** y la web lo avisa en cada pantalla. Antes de vender hay que conectar un proveedor de cuotas con licencia comercial (ver más abajo).
 
-El ejemplo incluido es la **unidad exterior de un aire acondicionado split inverter** (3.500 W, refrigerante R32): 22 piezas y 13 materiales, desde el compresor hasta la placa de control.
+## Sin consumo de tus claves
 
-## Qué podés hacer
+Los usuarios **no consultan ninguna API ni ningún modelo de IA**. La web es estática:
 
-- **Girar, acercar y desplazar** el objeto con el mouse o con los dedos.
-- **Desarmarlo** de una vez, paso a paso o con el deslizador, en el orden en que se desarma de verdad.
-- **Tocar una pieza** para abrir su ficha: descripción, función, especificaciones y física calculada (peso, volumen, energía para calentarla).
-- **Ver cada material** con sus propiedades mecánicas, térmicas y eléctricas, la norma que lo define y barras para compararlo con el resto.
-- **Cambiar la vista**: Sólido, Rayos X o Blueprint (plano de alambre).
-- **Aislar o enfocar** una pieza, y **buscar** por nombre o material (por ejemplo, «cobre»).
-- **Compartir una pieza**: cada ficha tiene su propio enlace, como `despiece-3d.vercel.app/#compresor`.
-- **Simular el funcionamiento**: la hélice gira.
-- Funciona en **celular**: la lista se abre con ☰ y la ficha sube desde abajo.
+- Los datos son dos archivos JSON en `public/data/` que se publican con la web.
+- Las probabilidades y las combinadas se calculan en el navegador del usuario con un modelo estadístico (Poisson + cuotas del mercado), sin llamadas externas.
+- Cuando conectes un proveedor de cuotas, la clave la usás **solo vos**, al actualizar los JSON (por ejemplo, con una tarea programada una vez por día). Los usuarios nunca la ven ni la gastan.
 
-![Modo Rayos X](docs/xray.png)
+## Qué incluye
 
-### Atajos de teclado
-
-Pulsá `?` dentro de la aplicación para verlos.
-
-| Tecla | Acción |
+| Área | Dónde |
 |---|---|
-| `E` | Desarmar / armar |
-| `←` `→` | Paso anterior / siguiente |
-| `1` `2` `3` | Sólido / Rayos X / Blueprint |
-| `F` | Enfocar la pieza seleccionada |
-| `I` | Aislar la pieza seleccionada |
-| `L` | Mostrar u ocultar etiquetas |
-| `Espacio` | Simular funcionamiento |
-| `R` | Giro automático |
-| `0` | Restablecer cámara |
-| `Esc` | Cerrar la ficha |
+| Inicio, qué hace / qué no hace, planes | `src/ui/paginas.ts` |
+| Registro con fecha de nacimiento y casilla +18 obligatoria | `src/ui/registro.ts` |
+| Panel: combinadas por plan, filtros por liga, «buscame x20», alertas, exportar CSV | `src/ui/panel.ts` |
+| Juego responsable: pausa (24 h, 7 o 30 días, no se acorta), límite diario en minutos (subirlo rige al día siguiente), línea de ayuda | `src/ui/panel.ts` |
+| Baja en un clic, reactivación, derecho de arrepentimiento de 10 días, cerrar cuenta y borrar datos | `src/ui/panel.ts`, `src/cuenta.ts` |
+| Historial público con las perdidas, ROI real y aciertos esperados frente a reales | `src/ui/historial.ts` |
+| Borrador de términos y condiciones, cómo funciona, juego responsable | `src/ui/paginas.ts` |
+| Aviso legal fijo en el pie de todas las páginas | `src/config.ts` |
+| Modelo de probabilidades | `src/motor/modelo.ts` |
+| Buscador de combinadas | `src/motor/combinadas.ts` |
 
-## Ejecutarlo en tu computadora
+**Nombre, precios, línea de ayuda y textos legales** están todos en `src/config.ts`.
 
-Necesitás [Node.js](https://nodejs.org) 18 o más reciente.
+## Ejecutarlo
+
+Necesitás Node.js 22.6 o más reciente.
 
 ```bash
-git clone https://github.com/facshot/despiece.git
-cd despiece
 npm install
-npm run dev
+npm run dev          # http://localhost:5173
+npm run build        # sitio estático en dist/
+npm run datos:demo   # regenera los datos simulados
 ```
 
-Abrí http://localhost:5173 en el navegador.
+## Antes de vender (pendiente)
 
-Otros comandos:
+1. **Cuotas por API con licencia comercial.** Reemplazar `scripts/generar-demo.ts` por un script que lea al proveedor y escriba `public/data/partidos.json` con el mismo formato (`Partido` en `src/motor/modelo.ts`), con `demo: false`. Hacen falta cuotas 1X2, más/menos 2,5 y ambos marcan, y goles a favor y en contra de cada equipo como local y visitante.
+2. **Historial real congelado.** Cada día, guardar las combinadas sugeridas y, cuando terminen los partidos, agregarlas a `historial.json` con `registrar()` (`src/motor/historial.ts`). Nunca borrar ni recalcular registros viejos.
+3. **Servidor de cuentas y cobro.** Hoy la cuenta vive en el navegador y el pago está simulado. Para vender hacen falta cuentas reales, cobro con Mercado Pago o Stripe, baja que corte la renovación en el procesador de pagos y los límites de plan aplicados en el servidor (en el navegador se pueden saltear). Ahí también se servirían las combinadas solo a quien pagó.
+4. **Validación de identidad** (DNI) además de la fecha de nacimiento.
+5. **Completar** el número de la línea de ayuda, el correo de contacto, la política de privacidad (Ley 25.326) y la revisión del abogado de los términos.
 
-```bash
-npm run build         # versión optimizada en la carpeta dist/
-npm run build:single  # un único archivo HTML en dist-single/, sin servidor
-npm run preview       # sirve la versión de dist/
-```
+## Calibración del modelo
 
-## Agregar tu propio objeto
-
-El visor no depende del aire acondicionado: podés cargar un motor, una bicicleta, un mueble o cualquier producto.
-
-1. Creá `src/models/<tu-objeto>/index.ts` y exportá un `ModelDef` (podés copiar el del aire acondicionado como base).
-2. Describí cada pieza:
-
-```ts
-{
-  id: 'disco-freno',
-  name: 'Disco de freno',
-  group: 'Frenos',                          // agrupa la lista lateral
-  materials: [{ id: 'fundicion-gris' }],    // el primero es el principal
-  description: 'Disco ventilado de fundición.',
-  function: 'Convertir la energía del movimiento en calor.',
-  specs: [{ label: 'Diámetro', value: 'Ø 280 mm' }, { label: 'Masa', value: '≈ 4,2 kg' }],
-  explode: [0, 0, 0.4],                     // dirección y distancia de salida, en metros
-  order: 2,                                 // etapa de desarme (0 sale primero)
-  build: ({ mat }) => cyl(0.14, 0.022, [0, 0.3, 0], mat('fundicion-gris'), 'z'),
-}
-```
-
-3. Si el material no existe, agregalo en `src/materials/library.ts`. Las unidades de cada propiedad están en `src/engine/types.ts`.
-4. Registrá el modelo en `MODELS`, dentro de `src/main.ts`, y abrilo con `?model=<id>`.
-
-Si una especificación se llama **Masa** y tiene un valor en kg, la sección «Física derivada» se calcula sola.
-
-### Usar un modelo de CAD o Blender
-
-Exportá el ensamble como `.glb` con un nodo por pieza, guardalo en `public/` y referencialo:
-
-```ts
-export const miModelo: ModelDef = {
-  gltf: './mi-producto.glb',
-  parts: [{ id: 'tapa', node: 'Tapa_superior', /* resto de la ficha */ }],
-  // …
-};
-```
-
-Cada nodo se toma por su nombre y recibe la explosión, la selección y la ficha. Los materiales del archivo se respetan.
-
-## Estructura
-
-```
-src/
-├── engine/          motor genérico: escena, explosión, selección, interfaz
-├── materials/       biblioteca de materiales con propiedades físicas
-├── models/          un archivo por objeto (el aire acondicionado está acá)
-├── main.ts          punto de entrada
-└── style.css
-```
-
-Hecho con [Three.js](https://threejs.org), TypeScript y Vite. Sin frameworks ni servidor.
-
-## Sobre los datos
-
-Las propiedades de los materiales son valores típicos de referencia a 20 °C según las normas citadas en cada ficha (EN, ASTM, JIS, IPC). Las especificaciones corresponden a un equipo genérico de su clase, no a una marca. Para trabajos de ingeniería, verificá con la ficha del proveedor.
+El modelo pondera 25% la estadística propia y 75% el mercado (`PESO_MODELO`). Con más peso propio, el buscador elige justo las selecciones donde el modelo más se equivoca y las probabilidades salen infladas. Si cambiás el modelo, revisá en el historial que los aciertos reales se parezcan a los esperados.
 
 ## Licencia
 
-[MIT](LICENSE)
+MIT
