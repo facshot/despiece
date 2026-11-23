@@ -1,5 +1,5 @@
 // Corre la tarea programada a mano: `npm run actualizar`.
-// Con API_FOOTBALL_KEY usa datos reales; sin ella (solo en desarrollo), simulados.
+// Trae partidos y cuotas reales de football-data.co.uk (necesita internet).
 import { actualizarTodo } from '../server/actualizar';
 
 console.log(await actualizarTodo());

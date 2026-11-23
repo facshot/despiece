@@ -141,7 +141,7 @@ export const comoFunciona: Vista = (raiz) => {
     <p class="lead">Contenido educativo sobre probabilidad y cuotas. Entender esto es más útil que cualquier sugerencia.</p>
 
     <h2>1. Comparamos muchas casas, no una</h2>
-    <p>Para cada partido juntamos las cuotas de varias casas de apuestas, de más de una fuente de datos. Si dos fuentes traen el mismo partido, lo reconocemos aunque escriban distinto el nombre de los equipos, y no contamos dos veces la misma casa.</p>
+    <p>Para cada partido juntamos las cuotas de varias casas de apuestas. Si una casa publica datos con errores evidentes, la dejamos afuera de ese partido.</p>
     <p>La cuota que mostramos es la mediana del mercado: la que vas a encontrar en una casa típica. Además te decimos hasta dónde llega con la mejor cuota disponible, sin recomendar ninguna casa.</p>
 
     <h2>2. La cuota esconde una probabilidad</h2>

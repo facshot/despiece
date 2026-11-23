@@ -8,18 +8,17 @@
 ## Cómo funciona por dentro
 
 ```
-football-data.co.uk (gratis) ──┐
-API-Football (opcional) ───────┼─► Tarea programada ─► Consolidación del mercado ─► Base de datos
-                               │   (1 vez por día)     (mismo partido, varias casas)        │
-Navegador del usuario ──(cookie de sesión)──► API del servidor ──(según su plan)────────────┘
+football-data.co.uk (gratis) ─► Tarea programada ─► Consolidación del mercado ─► Base de datos
+                                 (1 vez por día)     (varias casas por partido)          │
+Navegador del usuario ──(cookie de sesión)──► API del servidor ──(según su plan)─────────┘
 ```
 
-- **Funciona sin pagar datos.** La fuente base es football-data.co.uk: gratis, sin clave, con cuotas de varias casas para las ligas europeas principales. API-Football es opcional y suma cobertura.
-- **Varias fuentes, un solo mercado.** El mismo partido se reconoce en todas las fuentes aunque escriban distinto los equipos («Man United» y «Manchester United»). Cada casa cuenta una sola vez. Se calcula:
+- **Sin costos de datos ni claves.** La fuente es football-data.co.uk: gratis, sin registro, con cuotas de varias casas para las ligas europeas principales.
+- **Varias casas, un solo mercado.** Para cada partido se calcula:
   - la **cuota de referencia** (mediana) y la **mejor cuota disponible**, sin nombrar casas;
   - la **probabilidad de consenso**: cada casa sin su margen, promediadas (las de margen bajo pesan el doble);
   - y se descartan datos rotos (márgenes imposibles o cuotas muy desviadas del resto).
-  Si una fuente falla, el resto sigue funcionando.
+  El sistema admite sumar más fuentes en `server/fuentes/` (reconoce el mismo partido aunque cambie el nombre de los equipos), pero hoy usa solo la gratuita.
 - **Nadie consume tus claves.** Solo la tarea programada consulta a las fuentes. Los usuarios piden sus combinadas a tu servidor, que las calcula con los partidos ya guardados: no hay llamadas a APIs externas ni a modelos de IA por cada usuario.
 - **Nadie ve lo que no pagó.** Los partidos y las cuotas no se publican. El servidor entrega a cada cuenta solo lo que incluye su plan:
   - Prueba: 1 combinada por día. Básico: 3. Las de cada día quedan fijas, así que cambiar los filtros no da combinadas extra.
@@ -37,7 +36,7 @@ Navegador del usuario ──(cookie de sesión)──► API del servidor ──
 | Juego responsable en el servidor: pausa que no se acorta, límite de minutos diarios (subirlo rige al día siguiente), suspensión de cuentas | `server/usuarios.ts`, `src/ui/panel.ts` |
 | Historial público, congelado y auditable, con perdidas, anuladas y ROI real | `server/actualizar.ts`, `src/ui/historial.ts` |
 | Modelo de probabilidades y buscador de combinadas | `src/motor/` |
-| Fuentes de datos: football-data.co.uk (gratis), API-Football (opcional), simulada (solo pruebas) | `server/fuentes/` |
+| Fuentes de datos: football-data.co.uk (gratis) y simulada (solo pruebas) | `server/fuentes/` |
 | Consolidación del mercado entre fuentes y casas | `server/fuentes/mercado.ts`, `server/util/nombres.ts` |
 | Pruebas automáticas (22) e integración continua | `tests/`, `.github/workflows/ci.yml` |
 | Términos, privacidad, juego responsable, aviso fijo en el pie | `src/ui/paginas.ts`, `src/config.ts` |
@@ -62,10 +61,10 @@ Los correos de recuperación de contraseña aparecen en la consola.
 ## Ponerlo en producción (Vercel)
 
 1. **Base de datos.** En Vercel → Storage, creá una base Postgres (Neon). Eso carga `DATABASE_URL` sola. Las tablas se crean solas la primera vez.
-2. **Datos.** football-data.co.uk funciona sin configurar nada; las ligas están en `server/fuentes/footballdata.ts` (`DIVISIONES`). Opcional: contratá [API-Football](https://www.api-football.com) con uso comercial para sumar la Liga Profesional, «ambos marcan» y cuotas diarias (`LIGAS_API` en `server/fuentes/apifootball.ts`).
+2. **Datos.** football-data.co.uk funciona sin configurar nada. Las ligas están en `server/fuentes/footballdata.ts` (`DIVISIONES`).
 3. **Mercado Pago.** En [Tus integraciones](https://www.mercadopago.com.ar/developers/panel/app) creá una aplicación de suscripciones y copiá el Access Token de producción. En Webhooks, configurá la URL `https://TU-DOMINIO/api/webhooks/mercadopago` con los eventos de *Planes y suscripciones* y copiá la clave secreta.
 4. **Correo.** Creá una cuenta en [Resend](https://resend.com), verificá tu dominio y copiá la clave.
-5. **Variables de entorno.** En Vercel → Settings → Environment Variables, cargá las de `.env.example`: `SESSION_SECRET`, `URL_BASE`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `API_FOOTBALL_KEY`, `CRON_SECRET`, `RESEND_API_KEY` y `CORREO_REMITENTE`.
+5. **Variables de entorno.** En Vercel → Settings → Environment Variables, cargá las de `.env.example`: `SESSION_SECRET`, `URL_BASE`, `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `CRON_SECRET`, `RESEND_API_KEY` y `CORREO_REMITENTE`.
 6. **Publicar.** Hacé deploy. La tarea programada (`vercel.json`) corre todos los días a las 7:00 de Argentina. Para cargar datos la primera vez, ejecutala a mano:
    ```bash
    curl -H "Authorization: Bearer TU_CRON_SECRET" https://TU-DOMINIO/api/cron/actualizar
@@ -77,7 +76,6 @@ En producción la tarea nunca usa datos simulados. Sin `MP_ACCESS_TOKEN`, el bot
 
 - El plan gratuito de Vercel permite una tarea programada por día. Con el plan Pro podés cambiar el horario en `vercel.json` para actualizar cuotas y resultados varias veces por día.
 - **football-data.co.uk** actualiza sus cuotas unas dos veces por semana y cubre ligas europeas (sin «ambos marcan» ni Liga Profesional). La web muestra la atribución y la fecha de actualización. **Antes de vender, confirmá con ellos las condiciones de uso comercial.**
-- Con API-Football, cada actualización usa unas 3 consultas por día de partidos, 1 por partido (cuotas) y 1 por equipo (estadísticas, guardadas un día). Con 4 ligas son unas 100 a 150 consultas por corrida.
 - Para suspender una cuenta ante señales de juego problemático: `UPDATE usuarios SET suspendida = true WHERE email = '…';`.
 
 ## Pendiente antes de lanzar

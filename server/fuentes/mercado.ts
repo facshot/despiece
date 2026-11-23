@@ -9,8 +9,6 @@ import { fechaHoraLocal } from '../entorno';
 import { mismoEquipo } from '../util/nombres';
 import type { OfertaCasa, PartidoBruto, PartidoGuardado } from './tipos';
 
-/** Prioridad cuando dos fuentes traen la misma casa: gana la más fresca. */
-const PRIORIDAD: Record<string, number> = { 'api-football': 3, 'football-data': 2, simulada: 1 };
 /** Casas de referencia por su margen bajo: pesan el doble en el consenso. */
 const PESO: Record<string, number> = { pinnacle: 2, 'betfair exchange': 2 };
 const VENTANA_MS = 3 * 3600_000;
@@ -72,7 +70,8 @@ export function resumirMercado(ofertas: OfertaCasa[]): ResumenMercado {
   return out;
 }
 
-const idDe = (b: PartidoBruto) => `${b.fuente === 'api-football' ? 'af' : b.fuente === 'football-data' ? 'fd' : 'sim'}-${b.ref}`
+const PREFIJO: Record<string, string> = { 'football-data': 'fd', simulada: 'sim' };
+const idDe = (b: PartidoBruto) => `${PREFIJO[b.fuente] ?? b.fuente}-${b.ref}`
   .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9-]+/g, '-').toLowerCase();
 
 const pjTotal = (s?: { local: StatsEquipo; visitante: StatsEquipo }) => (s ? s.local.pj + s.visitante.pj : -1);
@@ -80,7 +79,8 @@ const pjTotal = (s?: { local: StatsEquipo; visitante: StatsEquipo }) => (s ? s.l
 /** Junta los partidos de todas las fuentes en un solo listado sin repetidos. */
 export function consolidar(brutos: PartidoBruto[]): PartidoGuardado[] {
   const grupos: PartidoBruto[][] = [];
-  for (const b of [...brutos].sort((x, y) => (PRIORIDAD[y.fuente] ?? 0) - (PRIORIDAD[x.fuente] ?? 0))) {
+  // Primero las cuotas más recientes: si dos fuentes traen la misma casa, gana la más fresca.
+  for (const b of [...brutos].sort((x, y) => (y.tomadas ?? '').localeCompare(x.tomadas ?? ''))) {
     const g = grupos.find((gr) => mismoPartido(gr[0], b));
     if (g) g.push(b);
     else grupos.push([b]);
@@ -88,8 +88,8 @@ export function consolidar(brutos: PartidoBruto[]): PartidoGuardado[] {
 
   const out: PartidoGuardado[] = [];
   for (const g of grupos) {
-    const principal = g[0]; // la fuente de mayor prioridad
-    // Una oferta por casa: la de la fuente de mayor prioridad.
+    const principal = g[0]; // la fuente con cuotas más recientes
+    // Una oferta por casa: la más reciente.
     const porCasa = new Map<string, OfertaCasa>();
     for (const b of g) for (const o of b.ofertas) if (!porCasa.has(o.casa)) porCasa.set(o.casa, o);
     const m = resumirMercado([...porCasa.values()]);

@@ -2,7 +2,6 @@
 // y junta todo en un mercado consolidado.
 
 import { esProduccion } from '../entorno';
-import { fuenteApiFootball } from './apifootball';
 import { fuenteFootballData } from './footballdata';
 import { consolidar } from './mercado';
 import { fuenteSimulada } from './simulada';
@@ -11,7 +10,6 @@ import type { EstadoPartido, Fuente, PartidoBruto, PartidoGuardado } from './tip
 /**
  * Fuentes activas:
  *  - football-data.co.uk: siempre (gratis, sin clave), salvo DESACTIVAR_FOOTBALL_DATA=1.
- *  - API-Football: si hay API_FOOTBALL_KEY.
  *  - Simulada: solo con FUENTE_SIMULADA=1 y nunca en producción.
  */
 export function fuentesActivas(): Fuente[] {
@@ -21,7 +19,6 @@ export function fuentesActivas(): Fuente[] {
   }
   const fuentes: Fuente[] = [];
   if (process.env.DESACTIVAR_FOOTBALL_DATA !== '1') fuentes.push(fuenteFootballData);
-  if (process.env.API_FOOTBALL_KEY) fuentes.push(fuenteApiFootball);
   if (!fuentes.length) throw new Error('No hay ninguna fuente de datos activa');
   return fuentes;
 }

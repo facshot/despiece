@@ -30,7 +30,7 @@ export interface PartidoBruto {
 export interface PartidoGuardado extends Partido {
   /** Inicio en ISO UTC. */
   inicio: string;
-  /** Referencia del partido en cada fuente: { 'football-data': '…', 'api-football': '…' }. */
+  /** Referencia del partido en cada fuente: { 'football-data': '…' }. */
   refs: Record<string, string>;
   sim?: { local: number; visitante: number };
 }
@@ -41,7 +41,7 @@ export type EstadoPartido =
   | { estado: 'pendiente' };
 
 export interface Fuente {
-  /** Identificador estable: 'football-data', 'api-football', 'simulada'. */
+  /** Identificador estable: 'football-data', 'simulada'. */
   id: string;
   /** Nombre para mostrar como atribución. */
   nombre: string;
