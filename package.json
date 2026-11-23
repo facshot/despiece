@@ -9,7 +9,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "actualizar": "tsx scripts/actualizar.ts",
-    "demo:sembrar": "tsx scripts/sembrar-demo.ts"
+    "demo:sembrar": "tsx scripts/sembrar-demo.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "check": "tsc --noEmit && npm test"
   },
   "dependencies": {
     "pg": "^8.23.1"

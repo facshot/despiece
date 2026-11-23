@@ -37,7 +37,14 @@ export interface Partido {
   visitante: string;
   /** `local`: rendimiento del local jugando de local; `visitante`: del visitante jugando de visitante. */
   stats: { local: StatsEquipo; visitante: StatsEquipo };
+  /** Cuota de referencia: la mediana entre todas las casas consultadas. */
   cuotas: Partial<Record<Mercado, number>>;
+  /** La mejor cuota que ofrece alguna casa (sin decir cuál). */
+  cuotasMax?: Partial<Record<Mercado, number>>;
+  /** Probabilidad de consenso del mercado: promedio de cada casa sin su margen. */
+  consenso?: Partial<Record<Mercado, number>>;
+  /** Cantidad de casas y fuentes de datos detrás de las cuotas. */
+  mercado?: { casas: number; fuentes: string[]; tomadas?: string };
   resultado?: { local: number; visitante: number };
 }
 
@@ -49,6 +56,10 @@ export interface Seleccion {
   visitante: string;
   mercado: Mercado;
   cuota: number;
+  /** Mejor cuota del mercado para esta selección, si se conoce. */
+  cuotaMax?: number;
+  /** Cantidad de casas consultadas para este partido. */
+  casas?: number;
   /** Probabilidad estimada (0 a 1). */
   prob: number;
   /** cuota × probabilidad: 1 es neutro, menos de 1 pierde a la larga. */
@@ -128,6 +139,11 @@ export function probabilidadesModelo(p: Partido): Record<Mercado, number> {
 export function probabilidadesMercado(p: Partido): Partial<Record<Mercado, number>> {
   const r: Partial<Record<Mercado, number>> = {};
   for (const grupo of GRUPOS) {
+    // Si hay consenso de varias casas, es mejor estimación que una sola cuota.
+    if (p.consenso && grupo.every((m) => p.consenso![m] !== undefined)) {
+      for (const m of grupo) r[m] = p.consenso[m];
+      continue;
+    }
     const cuotas = grupo.map((m) => p.cuotas[m]);
     if (cuotas.some((c) => !c || c <= 1)) continue;
     const inversas = cuotas.map((c) => 1 / (c as number));
@@ -158,7 +174,7 @@ export function seleccionesDe(p: Partido): Seleccion[] {
     if (!cuota || cuota <= 1) continue;
     out.push({
       partidoId: p.id, liga: p.liga, fecha: p.fecha, local: p.local, visitante: p.visitante,
-      mercado: m, cuota, prob: prob[m], valor: cuota * prob[m],
+      mercado: m, cuota, cuotaMax: p.cuotasMax?.[m], casas: p.mercado?.casas, prob: prob[m], valor: cuota * prob[m],
     });
   }
   return out;

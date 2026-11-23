@@ -9,6 +9,8 @@ export interface Combinada {
   objetivo: number;
   selecciones: Seleccion[];
   cuota: number;
+  /** Cuota total tomando la mejor cuota de cada selección. */
+  cuotaMax: number;
   /** Probabilidad de acertar todas las selecciones (se suponen independientes). */
   prob: number;
   /** cuota × probabilidad. Menos de 1 significa que, a la larga, se pierde. */
@@ -89,6 +91,7 @@ export function buscarCombinadas(partidos: Partido[], o: OpcionesBusqueda): Comb
     objetivo,
     selecciones: e.sels,
     cuota: e.cuota,
+    cuotaMax: e.sels.reduce((x, s) => x * (s.cuotaMax ?? s.cuota), 1),
     prob: e.prob,
     valor: e.cuota * e.prob,
   }));

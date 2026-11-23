@@ -241,3 +241,6 @@ label.check input { min-height: 0; width: 18px; height: 18px; margin-top: 3px; f
 .reg-anulada { border-left-color: var(--suave); }
 .reg-anulada .estado { color: var(--suave); }
 #error-panel { margin-top: 16px; }
+
+.combo-mercado { font-size: .85rem; color: var(--suave); margin: 0 0 6px; }
+.combo-mercado strong { color: var(--texto); font-variant-numeric: tabular-nums; }

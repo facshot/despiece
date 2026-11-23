@@ -42,7 +42,8 @@ export interface RespuestaCombinadas {
 }
 
 export interface Estado {
-  fuente: { nombre: string; demo: boolean; actualizado: string } | null;
+  fuentes: { nombre: string; ok: boolean; partidos: number }[];
+  actualizado: string | null;
   demo: boolean;
   partidosProximos: number;
   pagosSimulados: boolean;

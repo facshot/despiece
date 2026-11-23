@@ -4,7 +4,7 @@ import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { DIAS_ARREPENTIMIENTO, EDAD_MINIMA, MARCA, PLANES, type PlanId } from '../src/config';
 import { nombreMercado } from '../src/motor/modelo';
 import type { Registro } from '../src/motor/historial';
-import { actualizarTodo } from './actualizar';
+import { actualizarTodo, type EstadoFuentes } from './actualizar';
 import { aMedida, alertasPara, combinadasPara, ligasDisponibles, partidosDisponibles } from './analisis';
 import {
   consumirTokenReset, cookieCierre, cookieSesion, crearTokenReset, hashear, leerSesion, limitarIntentos, limpiarIntentos, sha256, verificar,
@@ -305,9 +305,15 @@ const historial: Handler = async () => {
 };
 
 const estado: Handler = async () => {
-  const fuente = await leerMeta<{ nombre: string; demo: boolean; actualizado: string }>('fuente');
+  const f = await leerMeta<EstadoFuentes>('fuente');
   const proximos = (await partidosDisponibles()).length;
-  return json({ fuente: fuente ?? null, demo: fuente?.demo ?? true, partidosProximos: proximos, pagosSimulados: pagosSimulados() });
+  return json({
+    fuentes: (f?.fuentes ?? []).map(({ nombre, ok, partidos }) => ({ nombre, ok, partidos })),
+    actualizado: f?.actualizado ?? null,
+    demo: f?.demo ?? true,
+    partidosProximos: proximos,
+    pagosSimulados: pagosSimulados(),
+  });
 };
 
 const cron: Handler = async ({ req }) => {

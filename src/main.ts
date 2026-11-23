@@ -4,7 +4,7 @@ import { MARCA } from './config';
 import { ingresar, olvide, registro, restablecer } from './ui/acceso';
 import { esc } from './ui/formato';
 import { historial } from './ui/historial';
-import { comoFunciona, inicio, juegoResponsable, noEncontrada, pie, planes, privacidad, terminos, type Vista } from './ui/paginas';
+import { comoFunciona, estadoServicio, inicio, juegoResponsable, noEncontrada, pie, planes, privacidad, terminos, type Vista } from './ui/paginas';
 import { panel } from './ui/panel';
 
 const RUTAS: Record<string, { vista: Vista; titulo: string }> = {
@@ -58,6 +58,16 @@ async function pintar(): Promise<void> {
   }
   // La cabecera depende de la sesión, que puede cambiar dentro de la vista.
   if (mio === turno) app.querySelector('.cab')!.outerHTML = cabecera();
+  void atribucion();
+}
+
+/** Atribución de las fuentes de datos en el pie, con la fecha de la última actualización. */
+async function atribucion(): Promise<void> {
+  const e = await estadoServicio();
+  const el = document.querySelector('#atribucion');
+  if (!e || !el || !e.fuentes.length) return;
+  const cuando = e.actualizado ? new Date(e.actualizado).toLocaleString('es-AR', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  el.textContent = `Datos: ${e.fuentes.map((f) => f.nombre).join(', ')}${cuando ? ` · actualizado el ${cuando}` : ''}`;
 }
 
 window.addEventListener('hashchange', () => void pintar());

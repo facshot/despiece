@@ -8,10 +8,10 @@
 //  - /teams/statistics?…      goles a favor y en contra como local y visitante
 //  - /fixtures?ids=…          resultados
 
-import { GRUPOS, type Mercado } from '../../src/motor/modelo';
+import type { Mercado } from '../../src/motor/modelo';
 import { leerMeta, guardarMeta } from '../db';
-import { diaLocal, fechaHoraLocal, sumarDias, ZONA } from '../entorno';
-import type { EstadoPartido, Fuente, PartidoGuardado } from './tipos';
+import { diaLocal, sumarDias, ZONA } from '../entorno';
+import type { EstadoPartido, Fuente, OfertaCasa, PartidoBruto } from './tipos';
 
 const BASE = 'https://v3.football.api-sports.io';
 
@@ -19,8 +19,13 @@ const BASE = 'https://v3.football.api-sports.io';
 export const LIGAS_API = [
   { id: 128, nombre: 'Liga Profesional', temporada: 'anual' },
   { id: 39, nombre: 'Premier League', temporada: 'europea' },
+  { id: 40, nombre: 'Championship', temporada: 'europea' },
   { id: 140, nombre: 'LaLiga', temporada: 'europea' },
   { id: 135, nombre: 'Serie A', temporada: 'europea' },
+  { id: 78, nombre: 'Bundesliga', temporada: 'europea' },
+  { id: 61, nombre: 'Ligue 1', temporada: 'europea' },
+  { id: 88, nombre: 'Eredivisie', temporada: 'europea' },
+  { id: 94, nombre: 'Primeira Liga', temporada: 'europea' },
 ] as const;
 
 const FINALES = new Set(['FT', 'AET', 'PEN']);
@@ -52,7 +57,7 @@ interface Fixture {
 }
 
 interface Odds {
-  bookmakers: { bets: { name: string; values: { value: string; odd: string }[] }[] }[];
+  bookmakers: { name: string; bets: { name: string; values: { value: string; odd: string }[] }[] }[];
 }
 
 interface TeamStats {
@@ -69,28 +74,21 @@ const APUESTAS: Record<string, Record<string, Mercado>> = {
   'Both Teams Score': { Yes: 'btts_si', No: 'btts_no' },
 };
 
-const mediana = (xs: number[]) => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = s.length >> 1;
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-
-function cuotasMedianas(odds: Odds | undefined): Partial<Record<Mercado, number>> {
-  const valores: Partial<Record<Mercado, number[]>> = {};
+/** Una oferta por casa con los mercados que nos interesan. */
+function ofertasDe(odds: Odds | undefined): OfertaCasa[] {
+  const out: OfertaCasa[] = [];
   for (const casa of odds?.bookmakers ?? []) {
+    const cuotas: Partial<Record<Mercado, number>> = {};
     for (const bet of casa.bets) {
       const mapa = APUESTAS[bet.name];
       if (!mapa) continue;
       for (const v of bet.values) {
         const m = mapa[v.value];
         const odd = Number(v.odd);
-        if (m && odd > 1) (valores[m] ??= []).push(odd);
+        if (m && odd > 1) cuotas[m] = odd;
       }
     }
-  }
-  const out: Partial<Record<Mercado, number>> = {};
-  for (const grupo of GRUPOS) {
-    if (grupo.every((m) => valores[m]?.length)) for (const m of grupo) out[m] = Math.round(mediana(valores[m]!) * 100) / 100;
+    if (Object.keys(cuotas).length) out.push({ casa: casa.name.toLowerCase().replace(/\s+/g, ' ').trim(), cuotas });
   }
   return out;
 }
@@ -106,11 +104,13 @@ async function estadisticas(liga: number, season: number, equipo: number): Promi
 }
 
 export const fuenteApiFootball: Fuente = {
+  id: 'api-football',
   nombre: 'API-Football',
   demo: false,
   async proximos(dias) {
     const ligas = new Map<number, (typeof LIGAS_API)[number]>(LIGAS_API.map((l) => [l.id, l]));
-    const out: PartidoGuardado[] = [];
+    const out: PartidoBruto[] = [];
+    const tomadas = new Date().toISOString();
     for (let i = 0; i < dias; i++) {
       const dia = sumarDias(diaLocal(), i);
       const fixtures = await api<Fixture[]>('/fixtures', { date: dia, timezone: ZONA });
@@ -119,25 +119,25 @@ export const fuenteApiFootball: Fuente = {
         if (!liga || f.fixture.status.short !== 'NS') continue;
         const season = temporada(liga.temporada, dia);
         const [odds] = await api<Odds[]>('/odds', { fixture: f.fixture.id });
-        const cuotas = cuotasMedianas(odds);
-        if (!Object.keys(cuotas).length) continue;
+        const ofertas = ofertasDe(odds);
+        if (!ofertas.length) continue;
         const [sl, sv] = await Promise.all([
           estadisticas(liga.id, season, f.teams.home.id),
           estadisticas(liga.id, season, f.teams.away.id),
         ]);
-        const inicio = new Date(f.fixture.date);
         out.push({
-          id: `af-${f.fixture.id}`,
+          fuente: 'api-football',
+          ref: String(f.fixture.id),
           liga: liga.nombre,
-          fecha: fechaHoraLocal(inicio),
-          inicio: inicio.toISOString(),
+          inicio: new Date(f.fixture.date).toISOString(),
           local: f.teams.home.name,
           visitante: f.teams.away.name,
           stats: {
             local: { pj: sl.fixtures.played.home, gf: sl.goals.for.total.home, gc: sl.goals.against.total.home },
             visitante: { pj: sv.fixtures.played.away, gf: sv.goals.for.total.away, gc: sv.goals.against.total.away },
           },
-          cuotas,
+          ofertas,
+          tomadas,
         });
       }
     }
@@ -145,11 +145,13 @@ export const fuenteApiFootball: Fuente = {
   },
   async resultados(partidos) {
     const out = new Map<string, EstadoPartido>();
-    const ids = partidos.filter((p) => p.id.startsWith('af-')).map((p) => p.id.slice(3));
-    for (let i = 0; i < ids.length; i += 20) {
-      const fixtures = await api<Fixture[]>('/fixtures', { ids: ids.slice(i, i + 20).join('-') });
+    const porRef = new Map(partidos.filter((p) => p.refs['api-football']).map((p) => [p.refs['api-football'], p.id]));
+    const refs = [...porRef.keys()];
+    for (let i = 0; i < refs.length; i += 20) {
+      const fixtures = await api<Fixture[]>('/fixtures', { ids: refs.slice(i, i + 20).join('-') });
       for (const f of fixtures) {
-        const id = `af-${f.fixture.id}`;
+        const id = porRef.get(String(f.fixture.id));
+        if (!id) continue;
         const s = f.fixture.status.short;
         const ft = f.score.fulltime;
         // Para 1X2 y goles cuenta el resultado de los 90 minutos.

@@ -37,12 +37,21 @@ export function fechaLarga(dia: string): string {
 /** «1 de cada 24» a partir de una probabilidad. */
 export const unaDeCada = (p: number) => `1 de cada ${Math.max(1, Math.round(1 / p)).toLocaleString('es-AR')}`;
 
+/** Línea con la amplitud del mercado: casas consultadas y mejor cuota disponible. */
+function mercadoCombinada(c: Combinada): string {
+  const casas = c.selecciones.map((s) => s.casas ?? 0).filter(Boolean);
+  const min = casas.length ? Math.min(...casas) : 0;
+  const mejora = c.cuotaMax && c.cuotaMax > c.cuota * 1.005;
+  if (!min && !mejora) return '';
+  return `<p class="combo-mercado">${min ? `Cuotas comparadas entre ${min === Math.max(...casas) ? min : `${min} y ${Math.max(...casas)}`} casas.` : ''}${mejora ? ` Con la mejor cuota de cada selección llega a <strong>x${cuota(c.cuotaMax)}</strong>.` : ''}</p>`;
+}
+
 export function tarjetaCombinada(c: Combinada): string {
   return `
   <article class="combo">
     <header class="combo-cab">
       <span class="chip">Objetivo x${c.objetivo}</span>
-      <strong class="combo-cuota">x${cuota(c.cuota)}</strong>
+      <strong class="combo-cuota" title="Cuota con la mediana del mercado">x${cuota(c.cuota)}</strong>
       <span class="combo-prob" title="Probabilidad estimada de acertar todas las selecciones">≈ ${prob(c.prob)} de probabilidad</span>
     </header>
     <ol class="patas">
@@ -53,9 +62,13 @@ export function tarjetaCombinada(c: Combinada): string {
             <span>${esc(s.local)} <span class="vs">vs</span> ${esc(s.visitante)}</span>
           </div>
           <div class="pata-sel">${esc(nombreMercado(s.mercado, s))}</div>
-          <div class="pata-num"><span class="num">${cuota(s.cuota)}</span><span class="meta">${prob(s.prob)}</span></div>
+          <div class="pata-num">
+            <span class="num" title="Mediana de ${s.casas ?? 1} casa${s.casas === 1 ? '' : 's'}">${cuota(s.cuota)}</span>
+            <span class="meta">${prob(s.prob)}</span>
+          </div>
         </li>`).join('')}
     </ol>
+    ${mercadoCombinada(c)}
     <p class="combo-detalle">
       En promedio sale ${unaDeCada(c.prob)} veces. Las demás se pierde todo lo apostado.
     </p>

@@ -1,11 +1,15 @@
 // SOLO DESARROLLO: llena la base local con 60 días de historial SIMULADO para
 // ver la web con datos. Nunca correrlo contra la base de producción.
-import { buscarCombinadas } from '../src/motor/combinadas';
-import { registrar } from '../src/motor/historial';
-import { guardarMeta, q } from '../server/db';
-import { diaLocal, esProduccion, sumarDias } from '../server/entorno';
-import { fuenteSimulada, partidosDelDia } from '../server/fuentes/simulada';
-import { actualizarTodo, OBJETIVOS_OFICIALES } from '../server/actualizar';
+process.env.FUENTE_SIMULADA = '1';
+export {};
+
+const { buscarCombinadas } = await import('../src/motor/combinadas');
+const { registrar } = await import('../src/motor/historial');
+const { q } = await import('../server/db');
+const { diaLocal, esProduccion, sumarDias } = await import('../server/entorno');
+const { fuenteSimulada, partidosDelDia } = await import('../server/fuentes/simulada');
+const { consolidar } = await import('../server/fuentes/mercado');
+const { actualizarTodo, OBJETIVOS_OFICIALES } = await import('../server/actualizar');
 
 if (esProduccion() || process.env.DATABASE_URL) {
   console.error('sembrar-demo es solo para la base local (sin DATABASE_URL).');
@@ -15,7 +19,7 @@ if (esProduccion() || process.env.DATABASE_URL) {
 let n = 0;
 for (let d = -60; d < 0; d++) {
   const dia = sumarDias(diaLocal(), d);
-  const partidos = partidosDelDia(dia);
+  const partidos = consolidar(partidosDelDia(dia));
   const estados = await fuenteSimulada.resultados(partidos);
   for (const p of partidos) {
     const e = estados.get(p.id);
@@ -30,7 +34,6 @@ for (let d = -60; d < 0; d++) {
     n++;
   }
 }
-await guardarMeta('fuente', { nombre: fuenteSimulada.nombre, demo: true, actualizado: new Date().toISOString() });
 console.log(`${n} combinadas simuladas en el historial.`);
 console.log(await actualizarTodo());
 process.exit(0);

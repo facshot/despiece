@@ -4,7 +4,7 @@
 
 import { GRUPOS, probabilidadesDesdeGoles, type Mercado } from '../../src/motor/modelo';
 import { diaLocal, sumarDias } from '../entorno';
-import type { EstadoPartido, Fuente, PartidoGuardado } from './tipos';
+import type { EstadoPartido, Fuente, OfertaCasa, PartidoBruto } from './tipos';
 
 const LIGAS: Record<string, string[]> = {
   'Liga Profesional': ['River Plate', 'Boca Juniors', 'Racing Club', 'Independiente', 'San Lorenzo', 'Estudiantes', 'Vélez Sarsfield', 'Talleres', 'Rosario Central', "Newell's Old Boys", 'Atlético Tucumán', 'Lanús'],
@@ -13,7 +13,8 @@ const LIGAS: Record<string, string[]> = {
   'Serie A': ['Inter', 'Milan', 'Juventus', 'Napoli', 'Roma', 'Lazio', 'Atalanta', 'Fiorentina', 'Bologna', 'Torino'],
 };
 const HORAS = ['12:00', '14:30', '16:00', '17:00', '19:15', '21:00', '21:30'];
-const MARGEN_CASA = 0.06;
+/** Casas inventadas, cada una con su margen. */
+const CASAS_SIM: [string, number][] = [['casa a', 0.06], ['casa b', 0.07], ['casa c', 0.05], ['pinnacle', 0.03]];
 
 function generador(semilla: number) {
   let s = semilla | 0;
@@ -48,9 +49,9 @@ const equipos: Equipo[] = (() => {
 })();
 
 /** Partidos simulados de un día. Siempre los mismos para la misma fecha. */
-export function partidosDelDia(dia: string): PartidoGuardado[] {
+export function partidosDelDia(dia: string): PartidoBruto[] {
   const g = generador(semillaDe(dia));
-  const out: PartidoGuardado[] = [];
+  const out: PartidoBruto[] = [];
   for (const liga of Object.keys(LIGAS)) {
     if (g.azar() < 0.35) continue;
     const delaLiga = equipos.filter((e) => e.liga === liga).sort(() => g.azar() - 0.5);
@@ -62,14 +63,18 @@ export function partidosDelDia(dia: string): PartidoGuardado[] {
       const lambdaV = 1.15 * visita.ataque * local.defensa;
       const pjL = 6 + Math.floor(g.azar() * 10);
       const pjV = 6 + Math.floor(g.azar() * 10);
-      const pCasa = probabilidadesDesdeGoles(lambdaL * (1 + 0.1 * g.normal()), lambdaV * (1 + 0.1 * g.normal()));
-      const cuotas: Partial<Record<Mercado, number>> = {};
-      for (const grupo of GRUPOS) for (const m of grupo) cuotas[m] = Math.max(1.01, Math.round((1 / (pCasa[m] * (1 + MARGEN_CASA))) * 100) / 100);
+      // Cada casa estima con su propio error y le suma su margen.
+      const ofertas: OfertaCasa[] = CASAS_SIM.map(([casa, margen]) => {
+        const pCasa = probabilidadesDesdeGoles(lambdaL * (1 + 0.08 * g.normal()), lambdaV * (1 + 0.08 * g.normal()));
+        const cuotas: Partial<Record<Mercado, number>> = {};
+        for (const grupo of GRUPOS) for (const m of grupo) cuotas[m] = Math.max(1.01, Math.round((1 / (pCasa[m] * (1 + margen))) * 100) / 100);
+        return { casa, cuotas };
+      });
       const hora = HORAS[Math.floor(g.azar() * HORAS.length)];
       out.push({
-        id: `sim-${dia}-${out.length + 1}`,
+        fuente: 'simulada',
+        ref: `${dia}-${out.length + 1}`,
         liga,
-        fecha: `${dia}T${hora}`,
         inicio: new Date(`${dia}T${hora}:00-03:00`).toISOString(),
         local: local.nombre,
         visitante: visita.nombre,
@@ -77,7 +82,7 @@ export function partidosDelDia(dia: string): PartidoGuardado[] {
           local: { pj: pjL, gf: g.poisson(pjL * 1.45 * local.ataque), gc: g.poisson(pjL * 1.15 * local.defensa) },
           visitante: { pj: pjV, gf: g.poisson(pjV * 1.15 * visita.ataque), gc: g.poisson(pjV * 1.45 * visita.defensa) },
         },
-        cuotas,
+        ofertas,
         sim: { local: lambdaL, visitante: lambdaV },
       });
     }
@@ -86,6 +91,7 @@ export function partidosDelDia(dia: string): PartidoGuardado[] {
 }
 
 export const fuenteSimulada: Fuente = {
+  id: 'simulada',
   nombre: 'Datos simulados (demostración)',
   demo: true,
   async proximos(dias) {
@@ -95,6 +101,7 @@ export const fuenteSimulada: Fuente = {
   async resultados(partidos) {
     const out = new Map<string, EstadoPartido>();
     for (const p of partidos) {
+      if (!p.refs.simulada) continue;
       const terminado = new Date(p.inicio).getTime() + 2 * 3600_000 < Date.now();
       if (!terminado || !p.sim) {
         out.set(p.id, { estado: 'pendiente' });

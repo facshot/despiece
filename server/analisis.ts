@@ -18,7 +18,7 @@ export async function partidosDisponibles(): Promise<PartidoGuardado[]> {
     "SELECT datos FROM partidos WHERE estado = 'programado' AND inicio > $1 AND inicio < $2 ORDER BY inicio",
     [ahora.toISOString(), hasta.toISOString()],
   );
-  return filas.map(({ datos: { sim: _sim, ...p } }) => p);
+  return filas.map(({ datos: { sim: _sim, refs: _refs, ...p } }) => ({ ...p, refs: {} }));
 }
 
 export async function ligasDisponibles(): Promise<string[]> {

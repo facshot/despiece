@@ -1,16 +1,16 @@
 // Tarea programada (Vercel Cron o `npm run actualizar`):
-//  1. Trae partidos y cuotas de los próximos días.
+//  1. Consulta todas las fuentes activas y consolida partidos y cuotas.
 //  2. Califica las combinadas publicadas cuyos partidos ya terminaron.
 //  3. Publica las combinadas oficiales del día (quedan congeladas en el historial).
 //
-// Es lo único que consulta al proveedor de datos, con tu clave.
+// Es lo único que consulta a los proveedores de datos.
 
 import { buscarCombinadas, type Combinada } from '../src/motor/combinadas';
 import { registrar } from '../src/motor/historial';
 import { guardarMeta, q } from './db';
-import { diaLocal, esProduccion, sumarDias } from './entorno';
-import { fuenteApiFootball } from './fuentes/apifootball';
-import { fuenteSimulada } from './fuentes/simulada';
+import { diaLocal, sumarDias } from './entorno';
+import { fuentesActivas, proximosConsolidados, resultadosConsolidados, sonDemo } from './fuentes';
+import { mismoPartido } from './fuentes/mercado';
 import type { EstadoPartido, Fuente, PartidoGuardado } from './fuentes/tipos';
 
 export const DIAS_PROXIMOS = 3;
@@ -19,29 +19,37 @@ export const OBJETIVOS_OFICIALES = [5, 20];
 /** Una combinada sin resolver después de estos días se anula. */
 const DIAS_MAXIMOS_PENDIENTE = 7;
 
-export function fuenteActiva(): Fuente {
-  if (process.env.API_FOOTBALL_KEY) return fuenteApiFootball;
-  if (esProduccion() && process.env.PERMITIR_DATOS_SIMULADOS !== '1') {
-    throw new Error('Falta API_FOOTBALL_KEY: en producción no se usan datos simulados');
-  }
-  return fuenteSimulada;
-}
-
+/**
+ * Guarda los partidos. Si uno ya estaba guardado (aunque venga de otra fuente o
+ * con otro nombre de equipo), conserva su id y suma las referencias: así el
+ * historial nunca apunta a un partido duplicado.
+ */
 export async function guardarPartidos(partidos: PartidoGuardado[]): Promise<void> {
+  if (!partidos.length) return;
   const ahora = new Date().toISOString();
+  const desde = new Date(Date.parse(partidos[0].inicio) - 86400_000).toISOString();
+  const hasta = new Date(Date.parse(partidos[partidos.length - 1].inicio) + 86400_000).toISOString();
+  const existentes = (await q<{ id: string; estado: string; datos: PartidoGuardado }>(
+    'SELECT id, estado, datos FROM partidos WHERE inicio >= $1 AND inicio <= $2', [desde, hasta],
+  ));
   for (const p of partidos) {
+    const previo = existentes.find((e) => e.id === p.id) ?? existentes.find((e) => mismoPartido(e.datos, p));
+    if (previo && previo.estado !== 'programado') continue; // ya jugado: no se toca
+    const datos: PartidoGuardado = previo
+      ? { ...p, id: previo.id, refs: { ...(previo.datos.refs ?? {}), ...p.refs } }
+      : p;
     await q(
       `INSERT INTO partidos (id, inicio, liga, estado, datos, actualizado) VALUES ($1, $2, $3, 'programado', $4, $5)
        ON CONFLICT (id) DO UPDATE SET inicio = EXCLUDED.inicio, datos = EXCLUDED.datos, actualizado = EXCLUDED.actualizado
        WHERE partidos.estado = 'programado'`,
-      [p.id, p.inicio, p.liga, JSON.stringify(p), ahora],
+      [datos.id, datos.inicio, datos.liga, JSON.stringify(datos), ahora],
     );
   }
 }
 
 interface Pendiente { fecha: string; combinada: Combinada }
 
-export async function calificar(fuente: Fuente): Promise<number> {
+export async function calificar(fuentes: Fuente[]): Promise<number> {
   const pendientes = await q<{ id: string; fecha: string; datos: Pendiente }>("SELECT id, fecha, datos FROM historial WHERE estado = 'pendiente'");
   if (!pendientes.length) return 0;
 
@@ -56,8 +64,7 @@ export async function calificar(fuente: Fuente): Promise<number> {
 
   const porConsultar = filas.filter((f) => f.estado === 'programado' && new Date(f.datos.inicio) < new Date()).map((f) => f.datos);
   if (porConsultar.length) {
-    const nuevos = await fuente.resultados(porConsultar);
-    for (const [id, e] of nuevos) {
+    for (const [id, e] of await resultadosConsolidados(fuentes, porConsultar)) {
       if (e.estado === 'pendiente') continue;
       estados.set(id, e);
       const p = partidos.get(id)!;
@@ -103,13 +110,30 @@ export async function publicarDelDia(): Promise<number> {
   return n;
 }
 
-export async function actualizarTodo(): Promise<Record<string, unknown>> {
-  const fuente = fuenteActiva();
-  const partidos = await fuente.proximos(DIAS_PROXIMOS);
+export interface EstadoFuentes {
+  fuentes: { id: string; nombre: string; ok: boolean; partidos: number; error?: string }[];
+  demo: boolean;
+  partidos: number;
+  calificadas: number;
+  publicadas: number;
+  actualizado: string;
+}
+
+export async function actualizarTodo(): Promise<EstadoFuentes> {
+  const fuentes = fuentesActivas();
+  const { partidos, informe } = await proximosConsolidados(fuentes, DIAS_PROXIMOS);
+  if (informe.every((i) => !i.ok)) throw new Error(`Todas las fuentes fallaron: ${informe.map((i) => `${i.fuente}: ${i.error}`).join('; ')}`);
   await guardarPartidos(partidos);
-  const calificadas = await calificar(fuente);
+  const calificadas = await calificar(fuentes);
   const publicadas = await publicarDelDia();
-  const resumen = { fuente: fuente.nombre, demo: fuente.demo, partidos: partidos.length, calificadas, publicadas, actualizado: new Date().toISOString() };
+  const resumen: EstadoFuentes = {
+    fuentes: informe.map(({ fuente, nombre, ok, partidos: n, error }) => ({ id: fuente, nombre, ok, partidos: n, ...(error ? { error } : {}) })),
+    demo: sonDemo(fuentes),
+    partidos: partidos.length,
+    calificadas,
+    publicadas,
+    actualizado: new Date().toISOString(),
+  };
   await guardarMeta('fuente', resumen);
   return resumen;
 }

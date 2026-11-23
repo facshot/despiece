@@ -140,25 +140,29 @@ export const comoFunciona: Vista = (raiz) => {
     <h1>Cómo funciona</h1>
     <p class="lead">Contenido educativo sobre probabilidad y cuotas. Entender esto es más útil que cualquier sugerencia.</p>
 
-    <h2>1. La cuota esconde una probabilidad</h2>
+    <h2>1. Comparamos muchas casas, no una</h2>
+    <p>Para cada partido juntamos las cuotas de varias casas de apuestas, de más de una fuente de datos. Si dos fuentes traen el mismo partido, lo reconocemos aunque escriban distinto el nombre de los equipos, y no contamos dos veces la misma casa.</p>
+    <p>La cuota que mostramos es la mediana del mercado: la que vas a encontrar en una casa típica. Además te decimos hasta dónde llega con la mejor cuota disponible, sin recomendar ninguna casa.</p>
+
+    <h2>2. La cuota esconde una probabilidad</h2>
     <p>Una cuota de 2,00 equivale a una probabilidad de 1 / 2,00 = 50%. Pero si sumás las probabilidades de 1, X y 2 de cualquier casa, dan más de 100%: esa diferencia es el margen de la casa, y es la razón por la que, en promedio, quien apuesta pierde.</p>
 
-    <h2>2. Nuestra estimación</h2>
+    <h2>3. Nuestra estimación</h2>
     <p>Para cada partido calculamos cuántos goles se esperan de cada equipo a partir de sus goles a favor y en contra como local y como visitante (modelo de Poisson, suavizado hacia la media de la liga). Con eso estimamos la probabilidad de 1X2, más o menos de 2,5 goles y ambos marcan.</p>
-    <p>Después mezclamos esa estimación con la probabilidad que reflejan las cuotas sin el margen: ${Math.round(PESO_MODELO * 100)}% nuestro modelo y ${Math.round((1 - PESO_MODELO) * 100)}% el mercado. El mercado tiene mucha información, y un modelo que se cree más listo que él suele equivocarse con confianza.</p>
+    <p>Para el mercado le sacamos el margen a cada casa por separado y promediamos (las casas de margen más bajo pesan más). Descartamos cuotas con errores evidentes. Después mezclamos nuestra estimación con ese consenso: ${Math.round(PESO_MODELO * 100)}% nuestro modelo y ${Math.round((1 - PESO_MODELO) * 100)}% el mercado. El mercado tiene mucha información, y un modelo que se cree más listo que él suele equivocarse con confianza.</p>
 
-    <h2>3. Cómo se arma una combinada</h2>
+    <h2>4. Cómo se arma una combinada</h2>
     <p>En una combinada se multiplican las cuotas, y también las probabilidades. Tres selecciones de 60% dan 0,6 × 0,6 × 0,6 = 21,6%. Una combinada x20 casi siempre está por debajo de 10%.</p>
     <p>El buscador elige una selección por partido para llegar cerca del objetivo con el mayor «cuota × probabilidad» posible. Si ese número es menor que 1, la combinada pierde plata a la larga, aunque sea la mejor disponible. Lo mostramos igual.</p>
 
-    <h2>4. Lo que el modelo no sabe</h2>
+    <h2>5. Lo que el modelo no sabe</h2>
     <ul>
       <li>Lesiones, rotaciones, clima o motivación de último momento.</li>
       <li>Que los partidos de una combinada no siempre son independientes.</li>
       <li>Que con pocas fechas jugadas las estadísticas son ruidosas.</li>
     </ul>
 
-    <h2>5. Cómo comprobarlo</h2>
+    <h2>6. Cómo comprobarlo</h2>
     <p>En el <a href="#/historial">historial</a> está cada combinada publicada, con su cuota, su probabilidad y su resultado. Comparamos los aciertos reales con los esperados para que puedas ver si las probabilidades están bien calibradas.</p>
   </article>`;
 };
@@ -247,6 +251,7 @@ export const pie = () => `
       <a href="#/juego-responsable">Juego responsable</a>
     </nav>
     <p class="meta">${esc(AYUDA.titulo)}: ${esc(AYUDA.telefono)}</p>
+    <p class="meta" id="atribucion"></p>
     <p class="meta">© ${new Date().getFullYear()} ${N}. Probabilidades estimadas, por ejemplo «x20 ≈ ${prob(0.05)}»: no son garantías.</p>
   </footer>
   <div class="aviso-fijo" role="contentinfo">${esc(AVISOS.pie)}</div>`;
